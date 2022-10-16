@@ -7,7 +7,9 @@
 
 
 import CoreLocation
-//This class manage users location basically
+
+//MARK: - The ObservableObject conformance allows instances of this class to be used inside views, so that when important changes happen the view will reload.  This class manage users location basically
+
 class LocationManager: NSObject, ObservableObject {
     
     private let locationManager = CLLocationManager()
