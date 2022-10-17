@@ -14,8 +14,8 @@ import MapKit
 struct UberMapViewRepresentable: UIViewRepresentable {
 
     let mapView  = MKMapView()
-    
-    let locationManager = LocationManager()
+
+    let locationManager = LocationManager.shared
     
     @Binding var mapState: MapViewState
     
@@ -33,10 +33,28 @@ struct UberMapViewRepresentable: UIViewRepresentable {
     
     func updateUIView(_ uiView: UIViewType, context: Context) {
         print("Debug map state is \(mapState)")
-        if let selectedLocation = locationViewModel.selectedLocationCoordinate {
-            context.coordinator.addAndSelectAnnotation(withCoordinate: selectedLocation)
-            context.coordinator.configurePolyline(withDestinationCoordinate: selectedLocation)
+        switch mapState {
+        case .noInput:
+            context.coordinator.clearMapViewAndRecenterOnUserLocation()
+            break
+        case .locationSelected:
+            if let selectedLocation = locationViewModel.selectedUberLocation?.coordinate {
+                context.coordinator.addAndSelectAnnotation(withCoordinate: selectedLocation)
+                context.coordinator.configurePolyline(withDestinationCoordinate: selectedLocation)
+    
+            }
+            break
+          
+        case .searchingForLocation:
+            break
+        case .polylineAdded:
+            break
         }
+    
+       
+//        if mapState == .noInput {
+//            context.coordinator.clearMapViewAndRecenterOnUserLocation()
+//        }
     }
     
     //It's return custom class
@@ -55,6 +73,7 @@ extension UberMapViewRepresentable {
         //we get access to parent class
         let parent: UberMapViewRepresentable
         var userLocationCoordinate: CLLocationCoordinate2D?
+        var  currentRegion: MKCoordinateRegion?
         init(parent: UberMapViewRepresentable) {
             self.parent = parent
             super.init()
@@ -68,6 +87,7 @@ extension UberMapViewRepresentable {
                                                                            longitude: userLocation.coordinate.longitude),
                                             span: MKCoordinateSpan(latitudeDelta: 0.05 ,
                                                                    longitudeDelta: 0.05) )
+            self.currentRegion = region
             //setting the region after all
             parent.mapView.setRegion(region, animated: true)
             
@@ -82,7 +102,7 @@ extension UberMapViewRepresentable {
             anno.coordinate = coordinate
             parent.mapView.addAnnotation(anno)
             parent.mapView.selectAnnotation(anno, animated: true)
-            parent.mapView.showAnnotations(parent.mapView.annotations, animated: true)
+            
         }
         
         //Apple maps directions is available to specific countries only. Please check full list here. Shortly you dont see polyline in Kazakhstan. Change to USA or other country if u want to see blue line.
@@ -96,28 +116,26 @@ extension UberMapViewRepresentable {
         func configurePolyline(withDestinationCoordinate coordinate: CLLocationCoordinate2D) {
             //getting user location from the func mapview didupdate
             guard let userLocationCoordinate = self.userLocationCoordinate else { return }
-            getDestinationRoute(from: userLocationCoordinate ,
+            parent.locationViewModel.getDestinationRoute(from: userLocationCoordinate ,
                                 to: coordinate) { route in
                 self.parent.mapView.addOverlay(route.polyline)
+                self.parent.mapState = .polylineAdded 
+               //adjust our polyline with ride request view
+                let rect =  self.parent.mapView.mapRectThatFits(route.polyline.boundingMapRect,edgePadding: .init(top: 64, left: 32, bottom: 500, right: 32))   
                  
+                self.parent.mapView.setRegion( MKCoordinateRegion(rect), animated: true)
             }
         }
         
         //Generate the polyline
-        func getDestinationRoute(from userLocation: CLLocationCoordinate2D, to destination: CLLocationCoordinate2D, completion: @escaping(MKRoute) -> Void) {
-            let userPlaceMark = MKPlacemark(coordinate: userLocation)
-            let destinationPlaceMark = MKPlacemark(coordinate: destination)
-            let request = MKDirections.Request()
-            request.source = MKMapItem(placemark: userPlaceMark)
-            request.destination = MKMapItem(placemark: destinationPlaceMark)
-            let directions  = MKDirections(request: request)
-            directions.calculate { response, error in
-                if let error = error {
-                    print("Debug failed to get directions \(error.localizedDescription)")
-                    return
-                }
-                guard let route = response?.routes.first else { return }
-                completion(route)
+ 
+        
+        func clearMapViewAndRecenterOnUserLocation() {
+            parent.mapView.removeAnnotations(parent.mapView.annotations)
+            parent.mapView.removeOverlays(parent.mapView.overlays)
+            
+            if let currentRegion = currentRegion {
+                parent.mapView.setRegion(currentRegion, animated: true)
             }
         }
     }

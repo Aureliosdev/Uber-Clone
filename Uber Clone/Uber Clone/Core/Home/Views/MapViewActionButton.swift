@@ -10,9 +10,9 @@ import SwiftUI
 struct MapViewActionButton: View {
     
     @Binding var mapState: MapViewState
-    
+    @EnvironmentObject var viewModel: LocationSearchViewModel
     var body: some View {
-        Button {   withAnimation(.spring()) {
+        Button { withAnimation(.spring()) {
             actionForState(mapState)
         } }
         
@@ -36,16 +36,20 @@ struct MapViewActionButton: View {
             print("Debug: no input")
         case .searchingForLocation:
             mapState = .noInput
-        case .locationSelected:
-            print("Debug: Clear mapView")
+        case .locationSelected, .polylineAdded:
+            mapState = .noInput
+            //BUG FIXING. after selecting each location, previous just dissapears
+            viewModel.selectedUberLocation = nil
         }
     }
     func imageNameForState(_ state:MapViewState) -> String{
         switch state {
         case .noInput:
             return "line.3.horizontal"
-        case .searchingForLocation, .locationSelected:
+        case .searchingForLocation, .locationSelected, .polylineAdded:
            return "arrow.left"
+        default:
+            return "line.3.horizontal"
         }
     }
     
